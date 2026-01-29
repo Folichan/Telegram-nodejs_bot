@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "dotenv": "^17.2.3",
-    "mysql2": "^3.16.1",
+    "mysql2": "^3.16.2",
     "node-telegram-bot-api": "^0.67.0"
   }
 }
