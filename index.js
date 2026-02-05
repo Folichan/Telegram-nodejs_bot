@@ -1,6 +1,8 @@
 require('dotenv').config();
 const db = require('./db');
 const TelegramBot = require('node-telegram-bot-api');
+const QRCode = require('qrcode');
+const puppeteer = require('puppeteer');
 
 // CREATE BOT
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
@@ -17,7 +19,9 @@ bot.setMyCommands([
   { command: 'creator', description: 'Создатель бота' },
   { command: 'randomitem', description: 'Случайный предмет' },
   { command: 'getitembyid', description: 'Получить предмет по ID' },
-  { command: 'deleteitem', description: 'Удалить предмет по ID' }
+  { command: 'deleteitem', description: 'Удалить предмет по ID' },
+  { command: 'qr', description: 'Получить QR текста'},
+  { command: 'webscr', description: 'Скриншот из сайта по ссылке'}
 ]);
 
 
@@ -114,6 +118,66 @@ bot.onText(/\/deleteitem (\d+)/, (msg, match) => {
       bot.sendMessage(chatId, 'Удалено.');
     }
   });
+});
+
+//qr code
+bot.onText(/\/qr (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const text = match[1];
+
+  try {
+    // создаём QR как buffer (картинка)
+    const qrBuffer = await QRCode.toBuffer(text);
+
+    // отправляем как фото
+    await bot.sendPhoto(chatId, qrBuffer, {
+      caption: 'QR-код:'
+    });
+
+  } catch (err) {
+    bot.sendMessage(chatId, 'Ошибка при создании QR-кода...');
+  }
+});
+
+//website screenshot
+bot.onText(/\/webscr (https?:\/\/\S+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const url = match[1];
+
+  let browser;
+
+  try {
+    browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    await page.setViewport({
+      width: 1280,
+      height: 800
+    });
+
+    await page.goto(url, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+
+    const screenshot = await page.screenshot({
+      fullPage: true
+    });
+
+    await bot.sendPhoto(chatId, screenshot, {
+      caption: `Скриншот сайта:\n${url}`
+    });
+
+  } catch (err) {
+    bot.sendMessage(chatId, 'Ошибка при создании скриншота');
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
 });
 
 

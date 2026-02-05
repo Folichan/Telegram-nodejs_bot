@@ -16,6 +16,8 @@
   "dependencies": {
     "dotenv": "^17.2.3",
     "mysql2": "^3.16.2",
-    "node-telegram-bot-api": "^0.67.0"
+    "node-telegram-bot-api": "^0.67.0",
+    "puppeteer": "^24.36.1",
+    "qrcode": "^1.5.4"
   }
 }
