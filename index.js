@@ -3,6 +3,7 @@ const db = require('./db');
 const TelegramBot = require('node-telegram-bot-api');
 const QRCode = require('qrcode');
 const puppeteer = require('puppeteer');
+const cron = require('node-cron');
 
 // CREATE BOT
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
@@ -24,6 +25,23 @@ bot.setMyCommands([
   { command: 'webscr', description: 'Скриншот из сайта по ссылке'}
 ]);
 
+//user's activity
+bot.on('message', (msg) => {
+  const userId = msg.chat.id;
+  const now = new Date();
+
+  const sql = `
+    INSERT INTO users (id, lastMessage)
+    VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE lastMessage = ?
+  `;
+
+  db.query(sql, [userId, now, now], (err) => {
+    if (err) {
+      console.error('Ошибка обновления таблицы users:', err);
+    }
+  });
+});
 
 // /help
 bot.onText(/\/help/, (msg) => {
@@ -179,6 +197,64 @@ bot.onText(/\/webscr (https?:\/\/\S+)/, async (msg, match) => {
     }
   }
 });
+
+function sendRandomItem(chatId) {
+  const sql = `
+    SELECT id, name, \`desc\`
+    FROM items
+    ORDER BY RAND()
+    LIMIT 1
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err || results.length === 0) return;
+
+    const item = results[0];
+    bot.sendMessage(
+      chatId,
+      `(${item.id}) - ${item.name}: ${item.desc}`
+    );
+  });
+}
+
+//CRON setting (for testing, ofc)
+const IS_TEST = false;    //change to true if you wish to test the schedule
+
+const CRON_TIME = IS_TEST ? '*/1 * * * *' : '0 13 * * *';
+const INACTIVITY_MS = IS_TEST
+? 1 * 60 * 1000               //1 minute
+: 1 * 24 * 60 * 60 * 1000;    //2 days
+
+//CRON
+cron.schedule(
+  CRON_TIME,
+  () => {
+    console.log('Cron: проверка неактивных пользователей');
+
+    const now = new Date();
+    const inactiveSince = new Date(now.getTime() - INACTIVITY_MS);
+
+    const sql = `
+      SELECT id
+      FROM users
+      WHERE lastMessage < ?
+    `;
+
+    db.query(sql, [inactiveSince], (err, results) => {
+      if (err) {
+        console.error('Ошибка выборки users:', err);
+        return;
+      }
+
+      results.forEach(user => {
+        sendRandomItem(user.id);
+      });
+    });
+  },
+  {
+    timezone: 'Europe/Moscow'
+  }
+);
 
 
 console.log('Бот запущен.');
